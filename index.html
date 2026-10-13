@@ -75,7 +75,7 @@ function pitch(l){
 }
 function card(l){
   const p=pitch(l),st=status[l.id]||'new';
-  const set=s=>()=>{status[l.id]=s;store.set('lf_status',status);chips();render()};
+  const set=s=>()=>{status[l.id]=s;store.set('lf_status',status);chips();render();fetch('status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:l.id,status:s})}).catch(()=>{})};
   const row=(k,v,href)=>v?[h('dt',{},k),h('dd',{},href?h('a',{href,target:'_blank',rel:'noopener'},v):v)]:[];
   return h('article',{class:'lead'},
     h('span',{class:'tag '+(l.need==='old'?'old':l.need==='has'?'ok':'')},{none:'No website',old:'Outdated site',has:'Has a site'}[l.need]||'Unknown'),
@@ -98,8 +98,27 @@ function cats(){const c=[...new Set(leads.map(l=>l.category).filter(Boolean))].s
 function setData(d){leads=Array.isArray(d)?d:[];cats();chips();render()}
 async function load(){
   next=Date.now()+300000;
-  try{const r=await fetch('leads.json?t='+Date.now());if(!r.ok)throw 0;setData(await r.json());$('dot').className='dot live';}
-  catch(e){$('dot').className='dot';$('sync').textContent='No leads.json found. Start scraper.py to serve it.';next=Date.now()+300000;render();}
+  try{
+    const [rLeads, rStatus] = await Promise.all([
+      fetch('leads.json?t='+Date.now()),
+      fetch('status.json?t='+Date.now()).catch(()=>null)
+    ]);
+    if(!rLeads.ok)throw 0;
+    if(rStatus && rStatus.ok){
+      const remote = await rStatus.json();
+      if(remote && typeof remote === 'object'){
+        status = Object.assign({}, status, remote);
+        store.set('lf_status', status);
+      }
+    }
+    setData(await rLeads.json());
+    $('dot').className='dot live';
+  }catch(e){
+    $('dot').className='dot';
+    $('sync').textContent='No leads.json found. Start scraper.py to serve it.';
+    next=Date.now()+300000;
+    render();
+  }
 }
 setInterval(()=>{const s=Math.max(0,Math.round((next-Date.now())/1000));if($('dot').classList.contains('live'))$('sync').textContent=`Live · next check in ${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;if(s===0)load()},1000);
 $('refresh').onclick=load;

@@ -14,6 +14,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.environ.get("DATA_DIR", HERE)  # point at a persistent disk when deployed
 os.makedirs(DATA_DIR, exist_ok=True)
 OUT = os.path.join(DATA_DIR, "leads.json")
+STATUS_FILE = os.path.join(DATA_DIR, "status.json")
 INTERVAL = 300  # seconds
 PASSWORD = os.environ.get("DASH_PASSWORD", "")  # set this when deployed; leads include contact details
 RADIUS = 12000  # meters around each city centre
@@ -115,18 +116,30 @@ def load():
         with open(OUT, "r", encoding="utf-8") as f: return json.load(f)
     except Exception: return []
 
+def load_status():
+    try:
+        with open(STATUS_FILE, "r", encoding="utf-8") as f: return json.load(f)
+    except Exception: return {}
+
+def save_status(data):
+    tmp = STATUS_FILE + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=1, ensure_ascii=False)
+    os.replace(tmp, STATUS_FILE)
+
 def cap_leads(leads, limit=MAX_LEADS):
     if len(leads) <= limit:
         return leads
     excess = len(leads) - limit
+    st_map = load_status()
     # Drop oldest 'skip' leads first
-    skip_leads = [l for l in leads if l.get("status") == "skip"]
+    skip_leads = [l for l in leads if st_map.get(l["id"]) == "skip" or l.get("status") == "skip"]
     skip_leads.sort(key=lambda l: l.get("found_at", ""))
     drop_ids = set(l["id"] for l in skip_leads[:excess])
     # If still exceeding cap, drop oldest uncontacted leads before contacted/replied leads
     if len(drop_ids) < excess:
         remaining = [l for l in leads if l["id"] not in drop_ids]
-        remaining.sort(key=lambda l: (1 if l.get("status") in ("contacted", "replied") else 0, l.get("found_at", "")))
+        remaining.sort(key=lambda l: (1 if st_map.get(l["id"]) in ("contacted", "replied") or l.get("status") in ("contacted", "replied") else 0, l.get("found_at", "")))
         for l in remaining:
             if len(drop_ids) >= excess: break
             drop_ids.add(l["id"])
@@ -188,6 +201,29 @@ def serve(port):
                 try:
                     with open(OUT, "rb") as f: return self.send(200, f.read(), "application/json; charset=utf-8")
                 except FileNotFoundError: return self.send(200, b"[]", "application/json; charset=utf-8")
+            if path == "/status.json":
+                try:
+                    with open(STATUS_FILE, "rb") as f: return self.send(200, f.read(), "application/json; charset=utf-8")
+                except FileNotFoundError: return self.send(200, b"{}", "application/json; charset=utf-8")
+            self.send(404, b"Not found")
+        def do_POST(self):
+            path = urllib.parse.urlparse(self.path).path
+            if not self.authed():
+                return self.send(401, b"Password required", extra={"WWW-Authenticate": 'Basic realm="Leads"'})
+            if path in ("/status", "/status.json"):
+                try:
+                    length = int(self.headers.get("Content-Length", 0))
+                    body = json.loads(self.rfile.read(length).decode("utf-8"))
+                    st = load_status()
+                    if isinstance(body, dict):
+                        if "id" in body and "status" in body:
+                            st[body["id"]] = body["status"]
+                        else:
+                            st.update(body)
+                    save_status(st)
+                    return self.send(200, b'{"ok":true}', "application/json; charset=utf-8")
+                except Exception as e:
+                    return self.send(400, json.dumps({"error": str(e)}).encode(), "application/json; charset=utf-8")
             self.send(404, b"Not found")
     srv = http.server.ThreadingHTTPServer(("0.0.0.0", port), H)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
