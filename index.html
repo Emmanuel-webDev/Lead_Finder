@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Leads · local business finder</title>
+<style>
+/* Hallmark · macrostructure: Workbench · tone: utilitarian · theme: custom (warm-grey paper, lime accent) */
+:root{--paper:oklch(94% .01 105);--panel:oklch(97.5% .006 105);--card:oklch(100% 0 0);--ink:oklch(20% .01 105);--muted:oklch(52% .01 105);--line:oklch(88% .01 105);--accent:oklch(93% .2 118);--warn:oklch(62% .15 30);--ok:oklch(60% .13 145);--r:16px;--s1:4px;--s2:8px;--s3:12px;--s4:16px;--s5:24px;--font:"Avenir Next","Segoe UI",system-ui,sans-serif}
+@media (prefers-color-scheme:dark){:root{--paper:oklch(22% .01 105);--panel:oklch(26% .01 105);--card:oklch(30% .01 105);--ink:oklch(94% .01 105);--muted:oklch(70% .01 105);--line:oklch(38% .01 105)}}
+*{box-sizing:border-box}html,body{margin:0;overflow-x:clip}
+body{background:var(--paper);color:var(--ink);font:15px/1.45 var(--font);padding:var(--s3)}
+.app{max-width:1000px;margin:0 auto;background:var(--panel);border-radius:24px;padding:var(--s4)}
+header{display:flex;flex-wrap:wrap;gap:var(--s3);align-items:center;justify-content:space-between;margin-bottom:var(--s4)}
+h1{font-size:28px;margin:0;font-weight:600;letter-spacing:-.02em}h1 small{font-size:14px;color:var(--muted);font-weight:400;margin-left:var(--s2)}
+.sync{font-size:13px;color:var(--muted);display:flex;gap:var(--s2);align-items:center}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--muted)}.dot.live{background:var(--ok)}
+button,input,select{font:inherit;color:inherit}
+input,select{background:var(--card);border:1px solid var(--line);border-radius:999px;padding:var(--s2) var(--s4);min-width:0}
+input:focus-visible,select:focus-visible,button:focus-visible,a:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+.tabs{display:inline-flex;background:var(--ink);border-radius:999px;padding:var(--s1);gap:2px;overflow-x:auto;max-width:100%}
+.tabs button{border:0;background:none;color:var(--paper);padding:var(--s2) var(--s4);border-radius:999px;cursor:pointer;white-space:nowrap}
+.tabs button[aria-pressed=true]{background:var(--card);color:var(--ink)}
+.bar{display:flex;flex-wrap:wrap;gap:var(--s2);margin-bottom:var(--s4)}.bar input[type=search]{flex:1 1 180px}
+.chip{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:var(--s2) var(--s4);cursor:pointer;white-space:nowrap}
+.chip:hover{border-color:var(--ink)}.chip.on{background:var(--accent);border-color:transparent;color:oklch(20% .01 105)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr));gap:var(--s3)}
+.lead{background:var(--card);border-radius:var(--r);padding:var(--s4);display:flex;flex-direction:column;gap:var(--s2);min-width:0}
+.lead h2{font-size:17px;margin:0;font-weight:600;overflow-wrap:anywhere}
+.meta{color:var(--muted);font-size:13px}
+.tag{align-self:flex-start;font-size:12px;padding:2px var(--s3);border-radius:999px;background:var(--accent);color:oklch(20% .01 105)}
+.tag.old{background:var(--warn);color:oklch(100% 0 0)}.tag.ok{background:var(--line);color:var(--muted)}
+.lead dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:2px var(--s3);font-size:14px}.lead dt{color:var(--muted)}.lead dd{margin:0;overflow-wrap:anywhere}
+.lead a{color:inherit}
+.acts{display:flex;flex-wrap:wrap;gap:var(--s2);margin-top:auto;padding-top:var(--s2)}
+.acts button,.acts a{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:6px var(--s3);font-size:13px;cursor:pointer;text-decoration:none;white-space:nowrap}
+.acts .main{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.empty{padding:var(--s5);text-align:center;color:var(--muted);grid-column:1/-1}
+.empty code{background:var(--card);padding:2px 6px;border-radius:6px}
+details{margin-top:var(--s4);font-size:14px}details summary{cursor:pointer;color:var(--muted)}
+.set{display:flex;flex-wrap:wrap;gap:var(--s2);margin-top:var(--s2)}
+</style></head><body>
+<div class="app">
+<header>
+  <h1>Leads<small id="count"></small></h1>
+  <div class="sync"><span class="dot" id="dot"></span><span id="sync">Not loaded</span>
+  <button class="chip" id="refresh">Refresh now</button></div>
+</header>
+<div class="bar">
+  <div class="tabs" id="tabs" role="group" aria-label="Outreach status"></div>
+  <input type="search" id="q" placeholder="Search name, city, category" aria-label="Search">
+</div>
+<div class="bar" id="needs" role="group" aria-label="Filter by need"></div>
+<div class="bar"><select id="country" aria-label="Country"><option value="">US + Canada</option><option>US</option><option>CA</option></select>
+<select id="cat" aria-label="Category"><option value="">All categories</option></select></div>
+<main class="grid" id="list"></main>
+<details><summary>Outreach settings and manual import</summary>
+<div class="set"><input id="me" placeholder="Your name"><input id="site" placeholder="Your portfolio link">
+<label class="chip">Import leads.json <input type="file" id="file" accept=".json" hidden></label></div></details>
+</div>
+<script>
+const $=id=>document.getElementById(id);
+const store={get(k,d){try{return JSON.parse(localStorage.getItem(k))??d}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+let leads=[],status=store.get('lf_status',{}),next=0;
+const f={tab:'new',need:'all',q:'',country:'',cat:''};
+const TABS=[['new','New'],['contacted','Contacted'],['replied','Replied'],['skip','Skipped']];
+const NEEDS=[['all','Any need'],['none','No website'],['old','Outdated site'],['has','Has site']];
+function h(t,a,...k){const e=document.createElement(t);for(const x in a||{})x==='class'?e.className=a[x]:x.startsWith('on')?e.addEventListener(x.slice(2),a[x]):e.setAttribute(x,a[x]);k.flat().forEach(c=>e.append(c));return e}
+function chips(){
+  $('tabs').replaceChildren(...TABS.map(([k,l])=>{const n=leads.filter(x=>(status[x.id]||'new')===k).length;return h('button',{'aria-pressed':f.tab===k,onclick(){f.tab=k;chips();render()}},`${l} ${n}`)}));
+  $('needs').replaceChildren(...NEEDS.map(([k,l])=>h('button',{class:'chip'+(f.need===k?' on':''),onclick(){f.need=k;chips();render()}},l)));
+}
+function pitch(l){
+  const me=$('me').value||'',site=$('site').value||'';
+  const why=l.need==='none'?`I couldn't find a website for ${l.name}, so I'm writing to offer to build one.`:l.need==='old'?`I looked at the ${l.name} website and it looks due for an update (${l.reason||'it may not work well on phones'}).`:`I'm a web designer and could help refresh the ${l.name} website.`;
+  return {subject:`Website for ${l.name}`,body:`Hi,\n\n${why} I build simple, fast sites for local businesses in ${l.city||'your area'}.\n\n${site?`Examples: ${site}\n\n`:''}Would a quick call or message this week suit you?\n\n${me}`};
+}
+function card(l){
+  const p=pitch(l),st=status[l.id]||'new';
+  const set=s=>()=>{status[l.id]=s;store.set('lf_status',status);chips();render()};
+  const row=(k,v,href)=>v?[h('dt',{},k),h('dd',{},href?h('a',{href,target:'_blank',rel:'noopener'},v):v)]:[];
+  return h('article',{class:'lead'},
+    h('span',{class:'tag '+(l.need==='old'?'old':l.need==='has'?'ok':'')},{none:'No website',old:'Outdated site',has:'Has a site'}[l.need]||'Unknown'),
+    h('h2',{},l.name),h('div',{class:'meta'},[l.category,[l.city,l.region,l.country].filter(Boolean).join(', ')].filter(Boolean).join(' · ')),
+    h('dl',{},row('Phone',l.phone,l.phone&&'tel:'+l.phone),row('Email',l.email,l.email&&'mailto:'+l.email),row('Site',l.website,/^https?:/.test(l.website||'')?l.website:null),row('Address',l.address)),
+    h('div',{class:'acts'},
+      l.email?h('a',{class:'main',href:`mailto:${l.email}?subject=${encodeURIComponent(p.subject)}&body=${encodeURIComponent(p.body)}`,onclick:set('contacted')},'Email'):'',
+      h('button',{onclick(e){navigator.clipboard?.writeText(p.body).then(()=>{e.target.textContent='Copied'})}},'Copy DM'),
+      st==='new'?h('button',{onclick:set('contacted')},'Mark contacted'):h('button',{onclick:set('new')},'Move to New'),
+      st==='contacted'?h('button',{onclick:set('replied')},'Got reply'):'',
+      st!=='skip'?h('button',{onclick:set('skip')},'Skip'):''));
+}
+function render(){
+  const q=f.q.toLowerCase();
+  const rows=leads.filter(l=>(status[l.id]||'new')===f.tab&&(f.need==='all'||l.need===f.need)&&(!f.country||l.country===f.country)&&(!f.cat||l.category===f.cat)&&(!q||[l.name,l.city,l.category,l.region].join(' ').toLowerCase().includes(q))).sort((a,b)=>(b.found_at||'').localeCompare(a.found_at||''));
+  $('count').textContent=`${rows.length} shown / ${leads.length} total`;
+  $('list').replaceChildren(...(rows.length?rows.map(card):[h('div',{class:'empty'},leads.length?'No leads match these filters.':h('span',{},'No leads yet. Run ',h('code',{},'python3 scraper.py'),' and open the address it prints. Or import a leads.json below.'))]));
+}
+function cats(){const c=[...new Set(leads.map(l=>l.category).filter(Boolean))].sort();$('cat').replaceChildren(h('option',{value:''},'All categories'),...c.map(x=>h('option',{value:x},x)));$('cat').value=f.cat}
+function setData(d){leads=Array.isArray(d)?d:[];cats();chips();render()}
+async function load(){
+  next=Date.now()+300000;
+  try{const r=await fetch('leads.json?t='+Date.now());if(!r.ok)throw 0;setData(await r.json());$('dot').className='dot live';}
+  catch(e){$('dot').className='dot';$('sync').textContent='No leads.json found. Start scraper.py to serve it.';next=Date.now()+300000;render();}
+}
+setInterval(()=>{const s=Math.max(0,Math.round((next-Date.now())/1000));if($('dot').classList.contains('live'))$('sync').textContent=`Live · next check in ${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;if(s===0)load()},1000);
+$('refresh').onclick=load;
+$('q').oninput=e=>{f.q=e.target.value;render()};$('country').onchange=e=>{f.country=e.target.value;render()};$('cat').onchange=e=>{f.cat=e.target.value;render()};
+for(const k of ['me','site']){$(k).value=store.get('lf_'+k,'');$(k).oninput=()=>{store.set('lf_'+k,$(k).value);render()}}
+$('file').onchange=async e=>{try{setData(JSON.parse(await e.target.files[0].text()));$('sync').textContent='Imported manually'}catch(x){$('sync').textContent='That file is not valid JSON.'}};
+chips();render();load();
+</script></body></html>
