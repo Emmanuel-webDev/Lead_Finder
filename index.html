@@ -42,7 +42,9 @@ details{margin-top:var(--s4);font-size:14px}details summary{cursor:pointer;color
 <header>
   <h1>Leads<small id="count"></small></h1>
   <div class="sync"><span class="dot" id="dot"></span><span id="sync">Not loaded</span>
-  <button class="chip" id="refresh">Refresh now</button></div>
+  <button class="chip" id="refresh">Refresh now</button>
+  <button class="chip" id="scan-now">Scan next city</button>
+  <button class="chip" id="export-csv">Export CSV</button></div>
 </header>
 <div class="bar">
   <div class="tabs" id="tabs" role="group" aria-label="Outreach status"></div>
@@ -50,6 +52,7 @@ details{margin-top:var(--s4);font-size:14px}details summary{cursor:pointer;color
 </div>
 <div class="bar" id="needs" role="group" aria-label="Filter by need"></div>
 <div class="bar"><select id="country" aria-label="Country"><option value="">US + Canada</option><option>US</option><option>CA</option></select>
+<select id="city" aria-label="City"><option value="">All cities</option></select>
 <select id="cat" aria-label="Category"><option value="">All categories</option></select></div>
 <main class="grid" id="list"></main>
 <details><summary>Outreach settings and manual import</summary>
@@ -60,7 +63,7 @@ details{margin-top:var(--s4);font-size:14px}details summary{cursor:pointer;color
 const $=id=>document.getElementById(id);
 const store={get(k,d){try{return JSON.parse(localStorage.getItem(k))??d}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
 let leads=[],status=store.get('lf_status',{}),next=0;
-const f={tab:'new',need:'all',q:'',country:'',cat:''};
+const f={tab:'new',need:'all',q:'',country:'',city:'',cat:''};
 const TABS=[['new','New'],['contacted','Contacted'],['replied','Replied'],['skip','Skipped']];
 const NEEDS=[['all','Any need'],['none','No website'],['old','Outdated site'],['has','Has site']];
 function h(t,a,...k){const e=document.createElement(t);for(const x in a||{})x==='class'?e.className=a[x]:x.startsWith('on')?e.addEventListener(x.slice(2),a[x]):e.setAttribute(x,a[x]);k.flat().forEach(c=>e.append(c));return e}
@@ -88,14 +91,18 @@ function card(l){
       st==='contacted'?h('button',{onclick:set('replied')},'Got reply'):'',
       st!=='skip'?h('button',{onclick:set('skip')},'Skip'):''));
 }
-function render(){
+function getFilteredRows(){
   const q=f.q.toLowerCase();
-  const rows=leads.filter(l=>(status[l.id]||'new')===f.tab&&(f.need==='all'||l.need===f.need)&&(!f.country||l.country===f.country)&&(!f.cat||l.category===f.cat)&&(!q||[l.name,l.city,l.category,l.region].join(' ').toLowerCase().includes(q))).sort((a,b)=>(b.found_at||'').localeCompare(a.found_at||''));
+  return leads.filter(l=>(status[l.id]||'new')===f.tab&&(f.need==='all'||l.need===f.need)&&(!f.country||l.country===f.country)&&(!f.city||l.city===f.city)&&(!f.cat||l.category===f.cat)&&(!q||[l.name,l.city,l.category,l.region].join(' ').toLowerCase().includes(q))).sort((a,b)=>(b.found_at||'').localeCompare(a.found_at||''));
+}
+function render(){
+  const rows=getFilteredRows();
   $('count').textContent=`${rows.length} shown / ${leads.length} total`;
-  $('list').replaceChildren(...(rows.length?rows.map(card):[h('div',{class:'empty'},leads.length?'No leads match these filters.':h('span',{},'No leads yet. Run ',h('code',{},'python3 scraper.py'),' and open the address it prints. Or import a leads.json below.'))]));
+  $('list').replaceChildren(...(rows.length?rows.map(card):[h('div',{class:'empty'},leads.length?'No leads match these filters.':'Gathering businesses in the background... Click "Scan next city" or "Refresh now" in a moment.')]));
 }
 function cats(){const c=[...new Set(leads.map(l=>l.category).filter(Boolean))].sort();$('cat').replaceChildren(h('option',{value:''},'All categories'),...c.map(x=>h('option',{value:x},x)));$('cat').value=f.cat}
-function setData(d){leads=Array.isArray(d)?d:[];cats();chips();render()}
+function cities(){const c=[...new Set(leads.map(l=>l.city).filter(Boolean))].sort();$('city').replaceChildren(h('option',{value:''},'All cities'),...c.map(x=>h('option',{value:x},x)));$('city').value=f.city}
+function setData(d){leads=Array.isArray(d)?d:[];cities();cats();chips();render()}
 async function load(){
   next=Date.now()+300000;
   try{
@@ -115,14 +122,36 @@ async function load(){
     $('dot').className='dot live';
   }catch(e){
     $('dot').className='dot';
-    $('sync').textContent='No leads.json found. Start scraper.py to serve it.';
+    $('sync').textContent='Connecting to leads server...';
     next=Date.now()+300000;
     render();
   }
 }
 setInterval(()=>{const s=Math.max(0,Math.round((next-Date.now())/1000));if($('dot').classList.contains('live'))$('sync').textContent=`Live · next check in ${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;if(s===0)load()},1000);
 $('refresh').onclick=load;
-$('q').oninput=e=>{f.q=e.target.value;render()};$('country').onchange=e=>{f.country=e.target.value;render()};$('cat').onchange=e=>{f.cat=e.target.value;render()};
+$('scan-now').onclick=async()=>{
+  const btn=$('scan-now');btn.disabled=true;btn.textContent='Scanning...';
+  try{await fetch('scan',{method:'POST'});}catch(e){}
+  let checks=0;
+  const timer=setInterval(async()=>{
+    checks++;
+    await load();
+    if(checks>=6){clearInterval(timer);btn.disabled=false;btn.textContent='Scan next city';}
+  },5000);
+};
+$('export-csv').onclick=()=>{
+  const rows=getFilteredRows();
+  if(!rows.length)return alert('No leads to export in the current view.');
+  const headers=['Name','Category','City','Region','Country','Phone','Email','Website','Address','Need','Reason'];
+  const esc=v=>`"${String(v||'').replace(/"/g,'""')}"`;
+  const csv=[headers.join(',')].concat(rows.map(r=>[esc(r.name),esc(r.category),esc(r.city),esc(r.region),esc(r.country),esc(r.phone),esc(r.email),esc(r.website),esc(r.address),esc(r.need),esc(r.reason)].join(','))).join('\r\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8;'}));
+  a.download=`leads_${f.tab}_${new Date().toISOString().slice(0,10)}.csv`;a.click();
+};
+$('q').oninput=e=>{f.q=e.target.value;render()};
+$('country').onchange=e=>{f.country=e.target.value;render()};
+$('city').onchange=e=>{f.city=e.target.value;render()};
+$('cat').onchange=e=>{f.cat=e.target.value;render()};
 for(const k of ['me','site']){$(k).value=store.get('lf_'+k,'');$(k).oninput=()=>{store.set('lf_'+k,$(k).value);render()}}
 $('file').onchange=async e=>{try{setData(JSON.parse(await e.target.files[0].text()));$('sync').textContent='Imported manually'}catch(x){$('sync').textContent='That file is not valid JSON.'}};
 chips();render();load();

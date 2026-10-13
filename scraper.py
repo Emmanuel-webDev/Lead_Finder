@@ -15,6 +15,7 @@ DATA_DIR = os.environ.get("DATA_DIR", HERE)  # point at a persistent disk when d
 os.makedirs(DATA_DIR, exist_ok=True)
 OUT = os.path.join(DATA_DIR, "leads.json")
 STATUS_FILE = os.path.join(DATA_DIR, "status.json")
+SEED_FILE = os.path.join(HERE, "seed_leads.json")
 INTERVAL = 300  # seconds
 PASSWORD = os.environ.get("DASH_PASSWORD", "")  # set this when deployed; leads include contact details
 RADIUS = 12000  # meters around each city centre
@@ -113,8 +114,21 @@ def to_lead(el, city, region, country):
 
 def load():
     try:
-        with open(OUT, "r", encoding="utf-8") as f: return json.load(f)
-    except Exception: return []
+        with open(OUT, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            if data: return data
+    except Exception:
+        pass
+    if os.path.exists(SEED_FILE):
+        try:
+            with open(SEED_FILE, "r", encoding="utf-8") as f:
+                seed = json.load(f)
+                if seed:
+                    save_leads(seed)
+                    return seed
+        except Exception:
+            pass
+    return []
 
 def load_status():
     try:
@@ -229,16 +243,26 @@ def serve(port):
                     return self.send(200, b'{"ok":true}', "application/json; charset=utf-8")
                 except Exception as e:
                     return self.send(400, json.dumps({"error": str(e)}).encode(), "application/json; charset=utf-8")
+            if path == "/scan":
+                def run_bg():
+                    global current_cycle
+                    current_cycle += 1
+                    try: cycle(current_cycle)
+                    except Exception as e: print("manual scan error:", e, flush=True)
+                threading.Thread(target=run_bg, daemon=True).start()
+                return self.send(200, b'{"ok":true,"message":"Scan started"}', "application/json; charset=utf-8")
             self.send(404, b"Not found")
     srv = http.server.ThreadingHTTPServer(("0.0.0.0", port), H)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     print(f"Dashboard on port {port}" + (" (password protected)" if PASSWORD else " (NO PASSWORD SET)"), flush=True)
 
+current_cycle = 0
+
 if __name__ == "__main__":
     serve(int(os.environ.get("PORT", "8000")))
-    i = 0
+    load()  # Ensure seed leads exist immediately on startup
     while True:
-        try: cycle(i)
+        try: cycle(current_cycle)
         except Exception as e: print("cycle error:", e, flush=True)
-        i += 1
+        current_cycle += 1
         time.sleep(INTERVAL)
