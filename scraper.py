@@ -80,7 +80,7 @@ def overpass(lat, lon):
 def inspect_site(url):
     """Return (need, reason, email). need is 'old' or 'has'."""
     try:
-        html = http_get(url, timeout=12, max_bytes=400_000)
+        html = http_get(url, timeout=6, max_bytes=400_000)
     except Exception:
         return "old", "the site did not load", ""
     reasons = []
@@ -145,6 +145,13 @@ def cap_leads(leads, limit=MAX_LEADS):
             drop_ids.add(l["id"])
     return [l for l in leads if l["id"] not in drop_ids]
 
+def save_leads(leads):
+    leads = cap_leads(leads)
+    tmp = OUT + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(leads, f, indent=1, ensure_ascii=False)
+    os.replace(tmp, OUT)
+
 def cycle(i):
     city, region, country, lat, lon = CITIES[i % len(CITIES)]
     now_str = time.strftime('%H:%M:%S')
@@ -165,13 +172,11 @@ def cycle(i):
             leads.append(l)
             seen.add(l["id"])
             added += 1
+            if added == 1 or added % 3 == 0:
+                save_leads(leads)
         if added >= 40: break  # keep each cycle light on target sites
 
-    leads = cap_leads(leads)
-    tmp = OUT + ".tmp"
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(leads, f, indent=1, ensure_ascii=False)
-    os.replace(tmp, OUT)
+    save_leads(leads)
     print(f"[{now_str}] {city}, {region}: found {found}, added {added}, total {len(leads)}", flush=True)
 
 def serve(port):
