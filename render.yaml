@@ -2,17 +2,13 @@ services:
   - type: web
     name: leadfinder
     runtime: python
-    plan: starter          # free plans sleep and lose disk data; the 5-min loop needs an always-on service
+    plan: free
     buildCommand: echo "no dependencies"
     startCommand: python scraper.py
     healthCheckPath: /healthz
-    disk:
-      name: leads
-      mountPath: /data
-      sizeGB: 1
     envVars:
       - key: DATA_DIR
-        value: /data
+        value: /tmp/data
       - key: DASH_PASSWORD
         sync: false        # Render asks you for this value on first deploy
       - key: PYTHON_VERSION
