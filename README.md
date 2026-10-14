@@ -4,9 +4,17 @@ A lightweight, autonomous lead discovery engine for freelance web designers and 
 
 Built using **Python's standard library only** — zero third-party packages or paid dependencies.
 
+**Live Deployment**: [https://lead-finder-h4xa.onrender.com](https://lead-finder-h4xa.onrender.com)  
+**Uptime Ping Target**: `https://lead-finder-h4xa.onrender.com/healthz`
+
 ---
 
 ## Features
+
+- **Pre-Seeded & Ready for Teams**: Bundled with a verified starter dataset (`seed_leads.json`) of 280+ leads across major US & Canadian metro areas so your team has leads instantly on first load.
+- **On-Demand "Scan Next City"**: Trigger background city scans on demand with a single click.
+- **One-Click CSV Export**: Export any filtered view to CSV for CRM or email outreach tools.
+- **City & Territory Filters**: Filter by country, city, category, outreach state, and website need.
 
 - **Automated Scanning Loop**: Cycles through target cities every 5 minutes scanning craft shops, restaurants, cafes, clinics, boutiques, repair shops, and professional services.
 - **Overpass Failover Pool**: Resilient against rate limits (HTTP 429) and timeouts (HTTP 504) with exponential backoff and automatic failover across multiple mirrors:
